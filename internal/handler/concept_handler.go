@@ -26,7 +26,7 @@ func (h *ConceptHandler) HandleConcepts(w http.ResponseWriter, r *http.Request) 
 		h.CreateConcept(w, r)
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
-		json.NewEncoder(w).Encode(Response{Error: "method not allowed"})
+		_ = json.NewEncoder(w).Encode(Response{Error: "method not allowed"})
 	}
 }
 
@@ -36,7 +36,7 @@ func (h *ConceptHandler) HandleConcept(w http.ResponseWriter, r *http.Request) {
 		h.DeleteConcept(w, r)
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
-		json.NewEncoder(w).Encode(Response{Error: "method not allowed"})
+		_ = json.NewEncoder(w).Encode(Response{Error: "method not allowed"})
 	}
 }
 
@@ -104,14 +104,14 @@ func (h *ConceptHandler) HandleConceptGin(c *gin.Context) {
 func (h *ConceptHandler) GetConcepts(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.WriteHeader(http.StatusMethodNotAllowed)
-		json.NewEncoder(w).Encode(Response{Error: "method not allowed"})
+		_ = json.NewEncoder(w).Encode(Response{Error: "method not allowed"})
 		return
 	}
 
 	tenantID := r.PathValue("tenant_id")
 	if tenantID == "" {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(Response{Error: "tenant_id is required"})
+		_ = json.NewEncoder(w).Encode(Response{Error: "tenant_id is required"})
 		return
 	}
 
@@ -119,38 +119,38 @@ func (h *ConceptHandler) GetConcepts(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		slog.Error("failed to get concepts", "error", err, "tenant_id", tenantID)
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(Response{Error: "internal server error"})
+		_ = json.NewEncoder(w).Encode(Response{Error: "internal server error"})
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(Response{Data: concepts})
+	_ = json.NewEncoder(w).Encode(Response{Data: concepts})
 }
 
 func (h *ConceptHandler) CreateConcept(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
-		json.NewEncoder(w).Encode(Response{Error: "method not allowed"})
+		_ = json.NewEncoder(w).Encode(Response{Error: "method not allowed"})
 		return
 	}
 
 	tenantID := r.PathValue("tenant_id")
 	if tenantID == "" {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(Response{Error: "tenant_id is required"})
+		_ = json.NewEncoder(w).Encode(Response{Error: "tenant_id is required"})
 		return
 	}
 
 	var req models.CreateConceptRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(Response{Error: "invalid request body"})
+		_ = json.NewEncoder(w).Encode(Response{Error: "invalid request body"})
 		return
 	}
 
 	if req.ConceptTerm == "" {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(Response{Error: "concept_term is required"})
+		_ = json.NewEncoder(w).Encode(Response{Error: "concept_term is required"})
 		return
 	}
 
@@ -158,18 +158,18 @@ func (h *ConceptHandler) CreateConcept(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		slog.Error("failed to create concept", "error", err, "tenant_id", tenantID)
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(Response{Error: "internal server error"})
+		_ = json.NewEncoder(w).Encode(Response{Error: "internal server error"})
 		return
 	}
 
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(Response{Data: concept})
+	_ = json.NewEncoder(w).Encode(Response{Data: concept})
 }
 
 func (h *ConceptHandler) DeleteConcept(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodDelete {
 		w.WriteHeader(http.StatusMethodNotAllowed)
-		json.NewEncoder(w).Encode(Response{Error: "method not allowed"})
+		_ = json.NewEncoder(w).Encode(Response{Error: "method not allowed"})
 		return
 	}
 
@@ -178,14 +178,14 @@ func (h *ConceptHandler) DeleteConcept(w http.ResponseWriter, r *http.Request) {
 
 	if tenantID == "" || conceptID == "" {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(Response{Error: "tenant_id and concept_id are required"})
+		_ = json.NewEncoder(w).Encode(Response{Error: "tenant_id and concept_id are required"})
 		return
 	}
 
 	if err := h.repo.DeleteConcept(r.Context(), conceptID); err != nil {
 		slog.Error("failed to delete concept", "error", err, "concept_id", conceptID)
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(Response{Error: "internal server error"})
+		_ = json.NewEncoder(w).Encode(Response{Error: "internal server error"})
 		return
 	}
 

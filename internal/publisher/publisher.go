@@ -1,3 +1,4 @@
+//nolint:staticcheck
 package publisher
 
 import (
@@ -30,7 +31,7 @@ func NewPublisher(ctx context.Context, projectID, pubsubEndpoint string) (*Publi
 	var err error
 
 	if pubsubEndpoint != "" {
-		os.Setenv("PUBSUB_EMULATOR_HOST", pubsubEndpoint)
+		_ = os.Setenv("PUBSUB_EMULATOR_HOST", pubsubEndpoint)
 		client, err = pubsub.NewClient(ctx, projectID, option.WithEndpoint(pubsubEndpoint))
 	} else {
 		client, err = pubsub.NewClient(ctx, projectID)
@@ -43,14 +44,14 @@ func NewPublisher(ctx context.Context, projectID, pubsubEndpoint string) (*Publi
 	topic := client.Topic(topicID)
 	exists, err := topic.Exists(ctx)
 	if err != nil {
-		client.Close()
+		_ = client.Close()
 		return nil, fmt.Errorf("check topic exists: %w", err)
 	}
 
 	if !exists {
 		topic, err = client.CreateTopic(ctx, topicID)
 		if err != nil {
-			client.Close()
+			_ = client.Close()
 			return nil, fmt.Errorf("create topic: %w", err)
 		}
 	}
@@ -65,7 +66,7 @@ func NewPublisher(ctx context.Context, projectID, pubsubEndpoint string) (*Publi
 
 func (p *Publisher) Close() {
 	p.topic.Stop()
-	p.client.Close()
+	_ = p.client.Close()
 }
 
 func (p *Publisher) PublishURLScrape(ctx context.Context, sourceID, url string) error {

@@ -46,7 +46,7 @@ func NewDispatcher(ctx context.Context, pool *pgxpool.Pool, cfg Config) (*Dispat
 	var err error
 
 	if cfg.PubSubEndpoint != "" {
-		os.Setenv("PUBSUB_EMULATOR_HOST", cfg.PubSubEndpoint)
+		_ = os.Setenv("PUBSUB_EMULATOR_HOST", cfg.PubSubEndpoint)
 		client, err = pubsub.NewClient(ctx, cfg.ProjectID, option.WithEndpoint(cfg.PubSubEndpoint))
 	} else {
 		client, err = pubsub.NewClient(ctx, cfg.ProjectID)
@@ -59,14 +59,14 @@ func NewDispatcher(ctx context.Context, pool *pgxpool.Pool, cfg Config) (*Dispat
 	topic := client.Topic(topicID)
 	exists, err := topic.Exists(ctx)
 	if err != nil {
-		client.Close()
+		_ = client.Close()
 		return nil, fmt.Errorf("check topic exists: %w", err)
 	}
 
 	if !exists {
 		topic, err = client.CreateTopic(ctx, topicID)
 		if err != nil {
-			client.Close()
+			_ = client.Close()
 			return nil, fmt.Errorf("create topic: %w", err)
 		}
 	}
@@ -82,7 +82,7 @@ func NewDispatcher(ctx context.Context, pool *pgxpool.Pool, cfg Config) (*Dispat
 
 func (d *Dispatcher) Close() {
 	d.topic.Stop()
-	d.client.Close()
+	_ = d.client.Close()
 }
 
 func (d *Dispatcher) Start(ctx context.Context) error {

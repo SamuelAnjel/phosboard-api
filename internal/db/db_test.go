@@ -5,19 +5,6 @@ import (
 	"testing"
 )
 
-type mockPool struct {
-	pingErr     error
-	closeCalled bool
-}
-
-func (m *mockPool) Ping(ctx context.Context) error {
-	return m.pingErr
-}
-
-func (m *mockPool) Close() {
-	m.closeCalled = true
-}
-
 func TestConnect_InvalidURL(t *testing.T) {
 	_, err := Connect(context.Background(), "invalid://url")
 	if err == nil {
