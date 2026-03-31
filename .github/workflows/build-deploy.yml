@@ -29,7 +29,7 @@ jobs:
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
-          version: latest
+          version: 'v1.61.0'
 
   security:
     runs-on: ubuntu-latest
@@ -45,13 +45,7 @@ jobs:
           format: 'sarif'
           output: 'trivy-results.sarif'
 
-      - name: Upload Trivy results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: 'trivy-results.sarif'
-
       - name: Fail if critical vulnerabilities found
-        if: always()
         run: |
           if grep -q '"Severity":"CRITICAL"' trivy-results.sarif; then
             echo "Critical vulnerabilities found!"
