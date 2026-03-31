@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	"cloud.google.com/go/pubsub"
+	"cloud.google.com/go/pubsub" //nolint:staticcheck
 	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/api/option"
 
