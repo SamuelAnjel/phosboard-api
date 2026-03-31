@@ -75,8 +75,8 @@ jobs:
         uses: google-github-actions/get-secretmanager-secrets@v2
         with:
           secrets: |
-            ${{ env.SECRET_DATABASE_URL }}:latest
-            ${{ env.SECRET_JWT_SECRET }}:latest
+            projects/phosboard/secrets/phosboard-database-url/versions/latest
+            projects/phosboard/secrets/phosboard-jwt-secret/versions/latest
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -114,6 +114,6 @@ jobs:
           flags: '--allow-unauthenticated'
           env_vars: |
             PORT=8080
-            DATABASE_URL=${{ secrets.phosboard-database-url }}
-            JWT_SECRET=${{ secrets.phosboard-jwt-secret }}
+            DATABASE_URL=${{ env.PHOSBOARD_DATABASE_URL }}
+            JWT_SECRET=${{ env.PHOSBOARD_JWT_SECRET }}
             GOOGLE_PROJECT_ID=${{ env.GCP_PROJECT_ID }}
