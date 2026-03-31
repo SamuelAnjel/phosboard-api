@@ -13,6 +13,8 @@ env:
   SERVICE_ACCOUNT: github-actions-sa@phosboard.iam.gserviceaccount.com
   GAR_LOCATION: us-east1
   GAR_REPO: phosboard-images
+  SECRET_DATABASE_URL: phosboard-database-url
+  SECRET_JWT_SECRET: phosboard-jwt-secret
 
 jobs:
   lint:
@@ -58,20 +60,26 @@ jobs:
     permissions:
       contents: 'read'
       id-token: 'write'
-      secrets: 'read'
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: 'projects/${{ env.GCP_PROJECT_NUMBER }}/locations/global/workloadIdentityPools/${{ env.WORKLOAD_IDENTITY_POOL }}/providers/${{ env.WORKLOAD_IDENTITY_PROVIDER }}'
           service_account: '${{ env.SERVICE_ACCOUNT }}'
+
+      - name: Fetch secrets from Secret Manager
+        uses: google-github-actions/get-secretmanager-secrets@v2
+        with:
+          secrets: |
+            ${{ env.SECRET_DATABASE_URL }}:latest
+            ${{ env.SECRET_JWT_SECRET }}:latest
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Configure Docker for Artifact Registry
         run: |
@@ -105,6 +113,6 @@ jobs:
           region: ${{ env.GAR_LOCATION }}
           flags: '--allow-unauthenticated'
           env_vars: |
-            DATABASE_URL=${{ secrets.DATABASE_URL }}
-            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            DATABASE_URL=${{ secrets.phosboard-database-url }}
+            JWT_SECRET=${{ secrets.phosboard-jwt-secret }}
             GOOGLE_PROJECT_ID=${{ env.GCP_PROJECT_ID }}
