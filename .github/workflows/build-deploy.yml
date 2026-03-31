@@ -113,6 +113,7 @@ jobs:
           region: ${{ env.GAR_LOCATION }}
           flags: '--allow-unauthenticated'
           env_vars: |
+            PORT=8080
             DATABASE_URL=${{ secrets.phosboard-database-url }}
             JWT_SECRET=${{ secrets.phosboard-jwt-secret }}
             GOOGLE_PROJECT_ID=${{ env.GCP_PROJECT_ID }}
