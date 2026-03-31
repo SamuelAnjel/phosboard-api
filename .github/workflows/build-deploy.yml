@@ -77,6 +77,7 @@ jobs:
           secrets: |
             projects/${{ env.GCP_PROJECT_NUMBER }}/secrets/phosboard-database-url/versions/latest
             projects/${{ env.GCP_PROJECT_NUMBER }}/secrets/phosboard-jwt-secret/versions/latest
+          export_to_environment: true
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
