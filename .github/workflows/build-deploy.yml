@@ -112,9 +112,8 @@ jobs:
           service: api-backend
           image: ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPO }}/api-backend:${{ github.ref_name }}
           region: ${{ env.GAR_LOCATION }}
-          flags: '--allow-unauthenticated'
+          flags: '--ingress=all'
           env_vars: |
-            PORT=8080
-            DATABASE_URL=${{ env.PHOSBOARD_DATABASE_URL }}
-            JWT_SECRET=${{ env.PHOSBOARD_JWT_SECRET }}
+            DATABASE_URL=${{ env.DATABASE_URL }}
+            JWT_SECRET=${{ env.JWT_SECRET }}
             GOOGLE_PROJECT_ID=${{ env.GCP_PROJECT_ID }}
