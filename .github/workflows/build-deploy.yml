@@ -10,7 +10,7 @@ env:
   GCP_PROJECT_NUMBER: '544990213867'
   WORKLOAD_IDENTITY_POOL: github-pool
   WORKLOAD_IDENTITY_PROVIDER: github-provider
-  SERVICE_ACCOUNT: phosboard-sa@phosboard.iam.gserviceaccount.com
+  SERVICE_ACCOUNT: github-actions-sa@phosboard.iam.gserviceaccount.com
   GAR_LOCATION: us-east1
   GAR_REPO: phosboard-images
 
