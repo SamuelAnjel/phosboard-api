@@ -44,14 +44,14 @@ func NewDocumentHandler(pool *pgxpool.Pool, pub *publisher.Publisher) *DocumentH
 func (h *DocumentHandler) Track(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
-		json.NewEncoder(w).Encode(Response{Error: "method not allowed"})
+		_ = json.NewEncoder(w).Encode(Response{Error: "method not allowed"})
 		return
 	}
 
 	var req TrackRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(Response{Error: "invalid request body"})
+		_ = json.NewEncoder(w).Encode(Response{Error: "invalid request body"})
 		return
 	}
 
@@ -127,14 +127,14 @@ func (h *DocumentHandler) TrackGin(c *gin.Context) {
 func (h *DocumentHandler) trackHandler(w http.ResponseWriter, r *http.Request, req TrackRequest) {
 	if req.URL == "" {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(Response{Error: "url is required"})
+		_ = json.NewEncoder(w).Encode(Response{Error: "url is required"})
 		return
 	}
 
 	parsedURL, err := url.Parse(req.URL)
 	if err != nil || parsedURL.Scheme == "" || parsedURL.Host == "" {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(Response{Error: "invalid URL format"})
+		_ = json.NewEncoder(w).Encode(Response{Error: "invalid URL format"})
 		return
 	}
 
@@ -147,19 +147,19 @@ func (h *DocumentHandler) trackHandler(w http.ResponseWriter, r *http.Request, r
 	if err != nil {
 		slog.Error("failed to insert discovery task", "error", err, "url", req.URL)
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(Response{Error: "failed to insert task"})
+		_ = json.NewEncoder(w).Encode(Response{Error: "failed to insert task"})
 		return
 	}
 
 	if err := h.publisher.PublishURLScrape(r.Context(), sourceID, req.URL); err != nil {
 		slog.Error("failed to publish url-scrape", "error", err, "url", req.URL)
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(Response{Error: "failed to publish task"})
+		_ = json.NewEncoder(w).Encode(Response{Error: "failed to publish task"})
 		return
 	}
 
 	w.WriteHeader(http.StatusAccepted)
-	json.NewEncoder(w).Encode(Response{
+	_ = json.NewEncoder(w).Encode(Response{
 		Data: map[string]string{
 			"document_id": documentID,
 			"url":         req.URL,

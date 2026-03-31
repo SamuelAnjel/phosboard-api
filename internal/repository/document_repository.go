@@ -151,7 +151,7 @@ func (r *PostgresDocumentRepository) TrackDocument(ctx context.Context, tenantID
 	if err != nil {
 		return "", fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	sourceID, err := r.getOrCreateSourceTx(ctx, tx, sourceType)
 	if err != nil {

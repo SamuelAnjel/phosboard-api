@@ -24,9 +24,9 @@ func TestLoadWithDefaults_Success(t *testing.T) {
 }
 
 func TestLoadWithDefaults_MissingEnvVar(t *testing.T) {
-	os.Unsetenv("DATABASE_URL")
-	os.Unsetenv("GOOGLE_PROJECT_ID")
-	os.Unsetenv("PUBSUB_EMULATOR_HOST")
+	_ = os.Unsetenv("DATABASE_URL")
+	_ = os.Unsetenv("GOOGLE_PROJECT_ID")
+	_ = os.Unsetenv("PUBSUB_EMULATOR_HOST")
 
 	_, err := LoadWithDefaults(context.Background())
 	if err == nil {
