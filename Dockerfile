@@ -9,7 +9,7 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -o /api ./cmd/api
+RUN CGO_ENABLED=0 GOOS=linux go build -o /app/api ./cmd/api
 
 FROM alpine:3.19
 
@@ -17,8 +17,7 @@ RUN apk add --no-cache ca-certificates
 
 WORKDIR /app
 
-COPY --from=builder /api .
-COPY .env.example .
+COPY --from=builder /app/api .
 
 EXPOSE 8080
 
