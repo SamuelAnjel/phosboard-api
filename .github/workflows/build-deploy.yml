@@ -112,7 +112,7 @@ jobs:
           service: api-backend
           image: ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPO }}/api-backend:${{ github.ref_name }}
           region: ${{ env.GAR_LOCATION }}
-          flags: '--ingress=all'
+          flags: '--allow-unauthenticated'
           env_vars: |
             DATABASE_URL=${{ env.DATABASE_URL }}
             JWT_SECRET=${{ env.JWT_SECRET }}
