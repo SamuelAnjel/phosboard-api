@@ -3,7 +3,9 @@ package repository
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -78,17 +80,25 @@ func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*Use
 }
 
 func (r *UserRepository) ValidateCredentials(ctx context.Context, email, password string) (*UserWithRoles, error) {
+	slog.Debug("ValidateCredentials called", "email", email)
+
 	user, err := r.GetUserByEmail(ctx, email)
 	if err != nil {
+		slog.Debug("GetUserByEmail failed", "email", email, "error", err)
 		// Don't leak whether user exists or not
 		return nil, fmt.Errorf("invalid credentials")
 	}
 
+	slog.Debug("User found", "user_id", user.ID, "email", user.Email)
+
 	// Compare password hash
+	slog.Debug("Comparing password hash", "hash_length", len(user.PasswordHash))
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
+		slog.Debug("Password comparison failed", "error", err, "bcrypt_error", err.Error())
 		return nil, fmt.Errorf("invalid credentials")
 	}
 
+	slog.Debug("Password validation successful")
 	return user, nil
 }
 

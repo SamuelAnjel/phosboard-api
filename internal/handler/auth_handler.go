@@ -42,16 +42,19 @@ func Login(c *gin.Context) {
 	}
 
 	// Validate credentials against database
+	slog.Debug("Calling ValidateCredentials", "email", req.Email)
 	user, err := userRepo.ValidateCredentials(c.Request.Context(), req.Email, req.Password)
 	if err != nil {
 		slog.Warn("Failed login attempt - DB validation failed",
 			"email", req.Email,
-			"error", err,
+			"error", err.Error(),
 			"error_type", fmt.Sprintf("%T", err),
-			"debug", "checking hash mismatch")
+			"debug", "checking hash mismatch",
+			"stack", "ValidateCredentials returned error")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
 		return
 	}
+	slog.Debug("ValidateCredentials succeeded", "user_id", user.ID)
 
 	// Determine primary role and tenant for token
 	// For super-admin (global role), tenantID is empty
