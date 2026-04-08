@@ -75,6 +75,8 @@ func main() {
 	conceptHandler := handler.NewConceptHandler(conceptRepo)
 	sourceRepo := repository.NewSourceRepository(database.Pool())
 	sourceHandler := handler.NewSourceHandler(sourceRepo)
+	tenantRepo := repository.NewTenantRepository(database.Pool())
+	tenantHandler := handler.NewTenantHandler(tenantRepo)
 
 	r := gin.Default()
 
@@ -83,6 +85,9 @@ func main() {
 	})
 
 	r.POST("/api/auth/login", handler.Login)
+
+	// Public endpoint to create first tenant
+	r.POST("/api/tenants", tenantHandler.CreateTenantGin)
 
 	protected := r.Group("/api/v1")
 	protected.Use(middleware.Auth())
