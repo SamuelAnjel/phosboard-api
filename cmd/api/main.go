@@ -91,7 +91,16 @@ func main() {
 	r := gin.Default()
 
 	r.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+		c.JSON(http.StatusOK, gin.H{"status": "ok", "version": "v1.1.9", "rbac": "enabled"})
+	})
+
+	r.GET("/debug/version", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"version":   "v1.1.9",
+			"rbac":      "enabled",
+			"timestamp": time.Now().Format(time.RFC3339),
+			"debug":     "auth_with_debug_logs",
+		})
 	})
 
 	r.POST("/api/auth/login", handler.Login)
