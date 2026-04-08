@@ -21,11 +21,11 @@ ON CONFLICT (id) DO UPDATE SET
     updated_at = NOW();
 
 -- 3. Create super admin user
--- Password: 'password' (bcrypt hash - $2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi)
+-- Password: 'password' (bcrypt hash - $2a$10$bMPWlUqSeT.VdRH6dC1Ga.pUh.J8gM0UYTIAJm01BWM7pAya.IOAq)
 INSERT INTO users (id, email, password_hash, full_name, is_active, created_at, updated_at) VALUES
     ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 
      'admin@phosboard.cl', 
-     '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', -- password
+     '$2a$10$bMPWlUqSeT.VdRH6dC1Ga.pUh.J8gM0UYTIAJm01BWM7pAya.IOAq', -- password
      'System Administrator',
      TRUE,
      NOW(),
@@ -89,7 +89,7 @@ ON CONFLICT (role_id, permission_id) DO NOTHING;
 INSERT INTO users (id, email, password_hash, full_name, is_active, created_at, updated_at) VALUES
     ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 
      'tenant.admin@example.com', 
-     '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', -- password
+     '$2a$10$bMPWlUqSeT.VdRH6dC1Ga.pUh.J8gM0UYTIAJm01BWM7pAya.IOAq', -- password
      'Tenant Administrator',
      TRUE,
      NOW(),
