@@ -88,7 +88,9 @@ func main() {
 	handler.SetUserRepository(userRepo)
 	middleware.SetUserRepository(userRepo)
 
-	r := gin.Default()
+	r := gin.New()
+	r.Use(gin.Recovery())
+	r.Use(gin.Logger())
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "version": "v1.1.9", "rbac": "enabled"})
