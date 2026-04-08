@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 
@@ -40,12 +41,16 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	slog.Info("Login attempt", "email", req.Email, "db_auth", "enabled")
+	slog.Info("Login attempt", "email", req.Email, "db_auth", "enabled", "debug", "rbac_v1.1.3")
 
 	// Validate credentials against database
 	user, err := userRepo.ValidateCredentials(c.Request.Context(), req.Email, req.Password)
 	if err != nil {
-		slog.Warn("Failed login attempt - DB validation failed", "email", req.Email, "error", err)
+		slog.Warn("Failed login attempt - DB validation failed",
+			"email", req.Email,
+			"error", err,
+			"error_type", fmt.Sprintf("%T", err),
+			"debug", "checking hash mismatch")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
 		return
 	}
