@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
@@ -18,13 +19,13 @@ func NewUserRepository(pool *pgxpool.Pool) *UserRepository {
 }
 
 type User struct {
-	ID           string `json:"id"`
-	Email        string `json:"email"`
-	PasswordHash string `json:"-"`
-	FullName     string `json:"full_name,omitempty"`
-	IsActive     bool   `json:"is_active"`
-	CreatedAt    string `json:"created_at,omitempty"`
-	UpdatedAt    string `json:"updated_at,omitempty"`
+	ID           string    `json:"id"`
+	Email        string    `json:"email"`
+	PasswordHash string    `json:"-"`
+	FullName     string    `json:"full_name,omitempty"`
+	IsActive     bool      `json:"is_active"`
+	CreatedAt    time.Time `json:"created_at,omitempty"`
+	UpdatedAt    time.Time `json:"updated_at,omitempty"`
 }
 
 type UserWithRoles struct {
