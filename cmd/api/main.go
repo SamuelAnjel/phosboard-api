@@ -97,12 +97,26 @@ func main() {
 	})
 
 	r.GET("/debug/version", func(c *gin.Context) {
+		// Test simple response
 		c.JSON(http.StatusOK, gin.H{
-			"version":   "v1.1.9",
+			"version":   "v1.2.1",
 			"rbac":      "enabled",
 			"timestamp": time.Now().Format(time.RFC3339),
 			"debug":     "auth_with_debug_logs",
 		})
+	})
+
+	r.GET("/debug/simple", func(c *gin.Context) {
+		// Even simpler response
+		c.JSON(http.StatusOK, map[string]string{
+			"test":   "working",
+			"status": "ok",
+		})
+	})
+
+	r.GET("/debug/plain", func(c *gin.Context) {
+		// Plain text response
+		c.String(http.StatusOK, "Plain text response - v1.2.1")
 	})
 
 	r.POST("/api/auth/login", handler.Login)
