@@ -54,23 +54,31 @@ func Login(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
 		return
 	}
-	slog.Debug("ValidateCredentials succeeded", "user_id", user.ID)
+	slog.Debug("ValidateCredentials succeeded", "user_id", user.ID, "roles_count", len(user.Roles))
 
 	// Determine primary role and tenant for token
 	// For super-admin (global role), tenantID is empty
 	// For tenant roles, use the first tenant-specific role
 	var tenantID, roleID string
 
-	for _, role := range user.Roles {
+	slog.Debug("Processing user roles", "total_roles", len(user.Roles))
+	for i, role := range user.Roles {
+		slog.Debug("Role info",
+			"index", i,
+			"role_name", role.RoleName,
+			"tenant_id", role.TenantID,
+			"is_global", role.TenantID == nil)
 		if role.TenantID == nil {
 			// Global role (super-admin)
 			tenantID = ""
 			roleID = role.RoleName
+			slog.Debug("Found global role", "role_name", roleID)
 			break
 		} else if tenantID == "" {
 			// First tenant-specific role
 			tenantID = *role.TenantID
 			roleID = role.RoleName
+			slog.Debug("Found tenant role", "role_name", roleID, "tenant_id", tenantID)
 		}
 	}
 
@@ -80,13 +88,17 @@ func Login(c *gin.Context) {
 		return
 	}
 
+	slog.Debug("Selected role for token", "role_id", roleID, "tenant_id", tenantID)
+
 	// Generate JWT token
+	slog.Debug("Generating JWT token")
 	token, err := auth.GenerateToken(c.Request.Context(), user.ID, tenantID, roleID)
 	if err != nil {
-		slog.Error("failed to generate token", "user_id", user.ID, "error", err)
+		slog.Error("failed to generate token", "user_id", user.ID, "error", err, "error_details", err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate token"})
 		return
 	}
+	slog.Debug("Token generated successfully", "token_length", len(token))
 
 	slog.Info("Successful login - RBAC system",
 		"user_id", user.ID,
