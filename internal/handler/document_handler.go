@@ -26,6 +26,7 @@ type TrackRequest struct {
 	URL      string `json:"url"`
 	SourceID string `json:"source_id,omitempty"`
 	Priority int    `json:"priority,omitempty"`
+	TenantID string `json:"tenant_id,omitempty"` // Required for super-admin, optional for tenant users
 }
 
 type Response struct {
@@ -71,12 +72,6 @@ func (h *DocumentHandler) TrackGin(c *gin.Context) {
 		return
 	}
 
-	tenantID := claims.TenantID
-	if tenantID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "tenant_id not found in token"})
-		return
-	}
-
 	var req TrackRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
@@ -86,6 +81,25 @@ func (h *DocumentHandler) TrackGin(c *gin.Context) {
 	if req.URL == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "url is required"})
 		return
+	}
+
+	// Determine tenantID:
+	// 1. For super-admin (tenantID empty in token), use tenant_id from request
+	// 2. For tenant users, use tenant_id from token (ignore request tenant_id for security)
+	tenantID := claims.TenantID
+	if tenantID == "" {
+		// Super-admin: require tenant_id in request
+		if req.TenantID == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "tenant_id is required for super-admin"})
+			return
+		}
+		tenantID = req.TenantID
+	} else {
+		// Tenant user: ensure they're not trying to access another tenant
+		if req.TenantID != "" && req.TenantID != tenantID {
+			c.JSON(http.StatusForbidden, gin.H{"error": "cannot track documents for other tenants"})
+			return
+		}
 	}
 
 	parsedURL, err := url.Parse(req.URL)

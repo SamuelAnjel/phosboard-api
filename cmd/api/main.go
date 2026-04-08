@@ -70,6 +70,8 @@ func main() {
 	}
 	defer pub.Close()
 
+	// Initialize repositories
+	userRepo := repository.NewUserRepository(database.Pool())
 	docHandler := handler.NewDocumentHandler(database.Pool(), pub)
 	conceptRepo := repository.NewConceptRepository(database.Pool())
 	conceptHandler := handler.NewConceptHandler(conceptRepo)
@@ -77,6 +79,10 @@ func main() {
 	sourceHandler := handler.NewSourceHandler(sourceRepo)
 	tenantRepo := repository.NewTenantRepository(database.Pool())
 	tenantHandler := handler.NewTenantHandler(tenantRepo)
+
+	// Setup authentication and authorization
+	handler.SetUserRepository(userRepo)
+	middleware.SetUserRepository(userRepo)
 
 	r := gin.Default()
 
@@ -87,21 +93,27 @@ func main() {
 	r.POST("/api/auth/login", handler.Login)
 
 	protected := r.Group("/api/v1")
-	protected.Use(middleware.Auth())
+	protected.Use(middleware.AuthWithAuthorization())
 	{
 		protected.GET("/documents", docHandler.ListDocuments)
 
 		protected.POST("/documents/track", docHandler.TrackGin)
-		protected.GET("/tenants/:tenant_id/concepts", conceptHandler.HandleConceptsGin)
-		protected.POST("/tenants/:tenant_id/concepts", conceptHandler.HandleConceptsGin)
-		protected.DELETE("/tenants/:tenant_id/concepts/:concept_id", conceptHandler.HandleConceptGin)
-		protected.GET("/tenants/:tenant_id/sources", sourceHandler.HandleSourcesGin)
-		protected.POST("/tenants/:tenant_id/sources", sourceHandler.HandleSourcesGin)
-		protected.GET("/tenants/:tenant_id/sources/:source_id", sourceHandler.HandleSourceGin)
-		protected.PUT("/tenants/:tenant_id/sources/:source_id", sourceHandler.HandleSourceGin)
-		protected.DELETE("/tenants/:tenant_id/sources/:source_id", sourceHandler.HandleSourceGin)
 
-		// Tenant management (authenticated)
+		// Tenant-specific routes with tenant context validation
+		tenantRoutes := protected.Group("/tenants/:tenant_id")
+		tenantRoutes.Use(middleware.TenantContext())
+		{
+			tenantRoutes.GET("/concepts", conceptHandler.HandleConceptsGin)
+			tenantRoutes.POST("/concepts", conceptHandler.HandleConceptsGin)
+			tenantRoutes.DELETE("/concepts/:concept_id", conceptHandler.HandleConceptGin)
+			tenantRoutes.GET("/sources", sourceHandler.HandleSourcesGin)
+			tenantRoutes.POST("/sources", sourceHandler.HandleSourcesGin)
+			tenantRoutes.GET("/sources/:source_id", sourceHandler.HandleSourceGin)
+			tenantRoutes.PUT("/sources/:source_id", sourceHandler.HandleSourceGin)
+			tenantRoutes.DELETE("/sources/:source_id", sourceHandler.HandleSourceGin)
+		}
+
+		// Tenant management (authenticated, for super-admin)
 		protected.POST("/tenants", tenantHandler.CreateTenantGin)
 	}
 
