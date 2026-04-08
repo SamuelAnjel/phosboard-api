@@ -86,9 +86,6 @@ func main() {
 
 	r.POST("/api/auth/login", handler.Login)
 
-	// Public endpoint to create first tenant
-	r.POST("/api/tenants", tenantHandler.CreateTenantGin)
-
 	protected := r.Group("/api/v1")
 	protected.Use(middleware.Auth())
 	{
@@ -103,6 +100,9 @@ func main() {
 		protected.GET("/tenants/:tenant_id/sources/:source_id", sourceHandler.HandleSourceGin)
 		protected.PUT("/tenants/:tenant_id/sources/:source_id", sourceHandler.HandleSourceGin)
 		protected.DELETE("/tenants/:tenant_id/sources/:source_id", sourceHandler.HandleSourceGin)
+
+		// Tenant management (authenticated)
+		protected.POST("/tenants", tenantHandler.CreateTenantGin)
 	}
 
 	srv := &http.Server{
