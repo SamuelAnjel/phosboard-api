@@ -12,7 +12,9 @@ import (
 )
 
 func main() {
-	godotenv.Load()
+	if err := godotenv.Load(); err != nil {
+		fmt.Printf("Error loading .env: %v\n", err)
+	}
 
 	ctx := context.Background()
 
@@ -29,9 +31,25 @@ func main() {
 		fmt.Printf("Failed to connect: %v\n", err)
 		os.Exit(1)
 	}
-	defer conn.Close(context.Background())
+	defer func() {
+		if err := conn.Close(context.Background()); err != nil {
+			fmt.Printf("Error closing connection: %v\n", err)
+		}
+	}()
 
-	files, err := filepath.Glob("/Users/samuel/development/phosboard/data/migrations/*.sql")
+	files, err := filepath.Glob("data/migrations/*.sql")
+	if err != nil {
+		fmt.Printf("Failed to find migrations: %v\n", err)
+		os.Exit(1)
+	}
+
+	if len(files) == 0 {
+		files, err = filepath.Glob("/app/data/migrations/*.sql")
+		if err != nil {
+			fmt.Printf("Failed to find migrations in /app: %v\n", err)
+			os.Exit(1)
+		}
+	}
 	if err != nil {
 		fmt.Printf("Failed to find migrations: %v\n", err)
 		os.Exit(1)
