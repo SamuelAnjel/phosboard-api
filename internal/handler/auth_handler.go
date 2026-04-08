@@ -25,22 +25,27 @@ func SetUserRepository(repo *repository.UserRepository) {
 }
 
 func Login(c *gin.Context) {
+	slog.Info("Login endpoint called", "version", "v1.1.1-RBAC", "path", c.Request.URL.Path)
+
 	if userRepo == nil {
-		slog.Error("UserRepository not initialized")
+		slog.Error("UserRepository not initialized - RBAC system not ready")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "authentication system not ready"})
 		return
 	}
 
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		slog.Warn("Invalid login request body", "error", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
 
+	slog.Info("Login attempt", "email", req.Email, "db_auth", "enabled")
+
 	// Validate credentials against database
 	user, err := userRepo.ValidateCredentials(c.Request.Context(), req.Email, req.Password)
 	if err != nil {
-		slog.Warn("failed login attempt", "email", req.Email, "error", err)
+		slog.Warn("Failed login attempt - DB validation failed", "email", req.Email, "error", err)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
 		return
 	}
@@ -77,6 +82,22 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	slog.Info("successful login", "user_id", user.ID, "email", user.Email, "role", roleID)
+	slog.Info("Successful login - RBAC system",
+		"user_id", user.ID,
+		"email", user.Email,
+		"role", roleID,
+		"tenant", tenantID,
+		"rbac", "enabled",
+		"user_roles_count", len(user.Roles))
+
+	// Debug: log all roles
+	for i, role := range user.Roles {
+		slog.Debug("User role",
+			"index", i,
+			"role_name", role.RoleName,
+			"role_id", role.RoleID,
+			"tenant_id", role.TenantID)
+	}
+
 	c.JSON(http.StatusOK, LoginResponse{Token: token})
 }

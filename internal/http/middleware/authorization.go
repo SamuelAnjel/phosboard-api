@@ -19,9 +19,15 @@ func SetUserRepository(repo *repository.UserRepository) {
 // AuthWithAuthorization combines authentication and authorization
 func AuthWithAuthorization() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		slog.Debug("AuthWithAuthorization middleware",
+			"path", c.Request.URL.Path,
+			"method", c.Request.Method,
+			"middleware", "RBAC-enabled")
+
 		// 1. Authentication
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
+			slog.Warn("Missing authorization header", "path", c.Request.URL.Path)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing authorization header"})
 			return
 		}
