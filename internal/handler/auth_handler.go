@@ -26,22 +26,20 @@ func SetUserRepository(repo *repository.UserRepository) {
 }
 
 func Login(c *gin.Context) {
-	slog.Info("Login endpoint called", "version", "v1.1.1-RBAC", "path", c.Request.URL.Path)
-
-	if userRepo == nil {
-		slog.Error("UserRepository not initialized - RBAC system not ready")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "authentication system not ready"})
-		return
-	}
-
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		slog.Warn("Invalid login request body", "error", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		slog.Error("Failed to bind JSON", "error", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request", "details": err.Error()})
 		return
 	}
 
-	slog.Info("Login attempt", "email", req.Email, "db_auth", "enabled", "debug", "rbac_v1.1.3")
+	slog.Info("Login attempt", "email", req.Email, "db_auth", "enabled", "debug", "rbac_v1.1.5", "password_length", len(req.Password))
+
+	if userRepo == nil {
+		slog.Error("userRepo is nil - SetUserRepository not called")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "authentication system not initialized"})
+		return
+	}
 
 	// Validate credentials against database
 	user, err := userRepo.ValidateCredentials(c.Request.Context(), req.Email, req.Password)
