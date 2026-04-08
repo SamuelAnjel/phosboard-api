@@ -124,8 +124,14 @@ func (h *DocumentHandler) TrackGin(c *gin.Context) {
 	if err != nil {
 		slog.Error("failed to get source", "error", err)
 	} else {
-		if err := h.publisher.PublishURLScrape(c.Request.Context(), sourceID, req.URL); err != nil {
-			slog.Error("failed to publish url-scrape", "error", err, "url", req.URL)
+		if h.publisher != nil {
+			if err := h.publisher.PublishURLScrape(c.Request.Context(), sourceID, req.URL); err != nil {
+				slog.Error("failed to publish url scrape", "error", err)
+				c.JSON(http.StatusInternalServerError, Response{Error: "failed to publish task"})
+				return
+			}
+		} else {
+			slog.Warn("publisher not available, skipping Pub/Sub publish")
 		}
 	}
 
@@ -165,11 +171,15 @@ func (h *DocumentHandler) trackHandler(w http.ResponseWriter, r *http.Request, r
 		return
 	}
 
-	if err := h.publisher.PublishURLScrape(r.Context(), sourceID, req.URL); err != nil {
-		slog.Error("failed to publish url-scrape", "error", err, "url", req.URL)
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(Response{Error: "failed to publish task"})
-		return
+	if h.publisher != nil {
+		if err := h.publisher.PublishURLScrape(r.Context(), sourceID, req.URL); err != nil {
+			slog.Error("failed to publish url scrape", "error", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			_ = json.NewEncoder(w).Encode(Response{Error: "failed to publish task"})
+			return
+		}
+	} else {
+		slog.Warn("publisher not available, skipping Pub/Sub publish")
 	}
 
 	w.WriteHeader(http.StatusAccepted)

@@ -47,13 +47,15 @@ func main() {
 	}
 	defer database.Close()
 
-	dispatch, err := dispatcher.NewDispatcher(ctx, database.Pool(), dispatcher.Config{
+	var dispatch *dispatcher.Dispatcher
+	dispatch, err = dispatcher.NewDispatcher(ctx, database.Pool(), dispatcher.Config{
 		ProjectID:       cfg.ProjectID,
 		PubSubEndpoint:  cfg.PubSubEmulatorHost,
 		IntervalSeconds: cfg.DispatcherIntervalSeconds,
 	})
 	if err != nil {
-		logger.Error("failed to create dispatcher", "error", err)
+		logger.Warn("failed to create dispatcher, continuing without dispatcher", "error", err)
+		dispatch = nil
 	} else {
 		defer dispatch.Close()
 		go func() {
@@ -63,12 +65,14 @@ func main() {
 		}()
 	}
 
-	pub, err := publisher.NewPublisher(ctx, cfg.ProjectID, cfg.PubSubEmulatorHost)
+	var pub *publisher.Publisher
+	pub, err = publisher.NewPublisher(ctx, cfg.ProjectID, cfg.PubSubEmulatorHost)
 	if err != nil {
-		logger.Error("failed to create publisher", "error", err)
-		os.Exit(1)
+		logger.Warn("failed to create publisher, continuing without Pub/Sub", "error", err)
+		pub = nil
+	} else {
+		defer pub.Close()
 	}
-	defer pub.Close()
 
 	// Initialize repositories
 	userRepo := repository.NewUserRepository(database.Pool())
