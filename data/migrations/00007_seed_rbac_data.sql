@@ -50,6 +50,7 @@ INSERT INTO permissions (id, endpoint, method, description, created_at) VALUES
     -- Tenant Admin permissions (tenant-scoped)
     ('11111111-1111-1111-1111-111111111102', '/api/v1/tenants/{tenant_id}/*', '*', 'Full access to tenant-specific endpoints', NOW()),
     ('11111111-1111-1111-1111-111111111103', '/api/v1/documents', '*', 'Full access to documents', NOW()),
+    ('11111111-1111-1111-1111-111111111108', '/api/v1/documents/track', 'POST', 'Track new documents', NOW()),
     ('11111111-1111-1111-1111-111111111104', '/api/v1/concepts', '*', 'Full access to concepts', NOW()),
     ('11111111-1111-1111-1111-111111111105', '/api/v1/sources', '*', 'Full access to sources', NOW()),
     
@@ -75,7 +76,8 @@ INSERT INTO role_permissions (role_id, permission_id, created_at) VALUES
     ('22222222-2222-2222-2222-222222222222', '11111111-1111-1111-1111-111111111102', NOW()),
     ('22222222-2222-2222-2222-222222222222', '11111111-1111-1111-1111-111111111103', NOW()),
     ('22222222-2222-2222-2222-222222222222', '11111111-1111-1111-1111-111111111104', NOW()),
-    ('22222222-2222-2222-2222-222222222222', '11111111-1111-1111-1111-111111111105', NOW())
+    ('22222222-2222-2222-2222-222222222222', '11111111-1111-1111-1111-111111111105', NOW()),
+    ('22222222-2222-2222-2222-222222222222', '11111111-1111-1111-1111-111111111108', NOW())
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 -- Tenant Editor gets read-only permissions
