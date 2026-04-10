@@ -76,7 +76,6 @@ func main() {
 
 	// Initialize repositories
 	userRepo := repository.NewUserRepository(database.Pool())
-	docRepo := repository.NewDocumentRepository(database.Pool())
 	docHandler := handler.NewDocumentHandler(database.Pool(), pub)
 	conceptRepo := repository.NewConceptRepository(database.Pool())
 	conceptHandler := handler.NewConceptHandler(conceptRepo)
@@ -133,50 +132,6 @@ func main() {
 	r.GET("/debug/plain", func(c *gin.Context) {
 		// Plain text response
 		c.String(http.StatusOK, "Plain text response - v1.2.1")
-	})
-
-	// Test endpoint without authentication
-	r.POST("/test/track", func(c *gin.Context) {
-		var req struct {
-			URL string `json:"url"`
-		}
-
-		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
-			return
-		}
-
-		if req.URL == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "url is required"})
-			return
-		}
-
-		// Use a test tenant ID
-		tenantID := "test-tenant"
-		sourceType := "manual"
-		priority := 0
-
-		docID, taskID, err := docRepo.TrackDocument(c.Request.Context(), tenantID, req.URL, sourceType, priority)
-		if err != nil {
-			slog.Error("failed to track document", "error", err, "url", req.URL)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to track document"})
-			return
-		}
-
-		if pub != nil {
-			if err := pub.PublishURLScrape(c.Request.Context(), docID, req.URL); err != nil {
-				slog.Error("failed to publish url scrape", "error", err)
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to publish task"})
-				return
-			}
-		}
-
-		c.JSON(http.StatusOK, gin.H{
-			"document_id": docID,
-			"task_id":     taskID,
-			"url":         req.URL,
-			"message":     "tracking started",
-		})
 	})
 
 	r.POST("/api/auth/login", handler.Login)

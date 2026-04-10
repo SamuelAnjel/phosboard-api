@@ -1,9 +1,7 @@
 package handler
 
 import (
-	"context"
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -120,12 +118,16 @@ func (h *DocumentHandler) TrackGin(c *gin.Context) {
 		return
 	}
 
+	slog.Info("tracking document", "document_id", docID, "task_id", taskID, "url", req.URL, "tenant_id", tenantID)
+
 	if h.publisher != nil {
+		slog.Info("publishing to url-scrape topic", "document_id", docID, "url", req.URL)
 		if err := h.publisher.PublishURLScrape(c.Request.Context(), docID, req.URL); err != nil {
-			slog.Error("failed to publish url scrape", "error", err)
+			slog.Error("failed to publish url scrape", "error", err, "document_id", docID, "url", req.URL)
 			c.JSON(http.StatusInternalServerError, Response{Error: "failed to publish task"})
 			return
 		}
+		slog.Info("successfully published to url-scrape", "document_id", docID)
 	} else {
 		slog.Warn("publisher not available, skipping Pub/Sub publish")
 	}
@@ -192,22 +194,6 @@ func (h *DocumentHandler) trackHandler(w http.ResponseWriter, r *http.Request, r
 			"status":      "queued",
 		},
 	})
-}
-
-func (h *DocumentHandler) insertDiscoveryTask(ctx context.Context, url, sourceType string, priority int) (string, error) {
-	var id string
-	err := h.pool.QueryRow(ctx, `
-		INSERT INTO discovery_tasks (url, source_type, status, priority)
-		VALUES ($1, $2, 'pending', $3)
-		ON CONFLICT (url) DO UPDATE SET updated_at = NOW()
-		RETURNING id
-	`, url, sourceType, priority).Scan(&id)
-
-	if err != nil {
-		return "", fmt.Errorf("insert discovery task: %w", err)
-	}
-
-	return id, nil
 }
 
 func (h *DocumentHandler) ListDocuments(c *gin.Context) {

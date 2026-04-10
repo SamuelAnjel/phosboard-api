@@ -70,25 +70,34 @@ func (p *Publisher) Close() {
 }
 
 func (p *Publisher) PublishURLScrape(ctx context.Context, documentID, url string) error {
+	logger := slog.With("component", "publisher", "method", "PublishURLScrape")
+
 	task := URLScrapeTask{
 		DocumentID: documentID,
 		URL:        url,
 	}
 
+	logger.Info("preparing message", "document_id", documentID, "url", url)
+
 	data, err := json.Marshal(task)
 	if err != nil {
+		logger.Error("failed to marshal task", "error", err, "document_id", documentID)
 		return fmt.Errorf("marshal task: %w", err)
 	}
+
+	logger.Debug("message data", "data", string(data))
 
 	msg := &pubsub.Message{
 		Data: data,
 	}
 
 	result := p.topic.Publish(ctx, msg)
-	_, err = result.Get(ctx)
+	messageID, err := result.Get(ctx)
 	if err != nil {
+		logger.Error("failed to publish message", "error", err, "document_id", documentID)
 		return fmt.Errorf("publish message: %w", err)
 	}
 
+	logger.Info("message published successfully", "message_id", messageID, "document_id", documentID)
 	return nil
 }
