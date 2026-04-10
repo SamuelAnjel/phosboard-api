@@ -120,12 +120,16 @@ func (h *DocumentHandler) TrackGin(c *gin.Context) {
 		return
 	}
 
+	slog.Info("tracking document", "document_id", docID, "task_id", taskID, "url", req.URL, "tenant_id", tenantID)
+
 	if h.publisher != nil {
+		slog.Info("publishing to url-scrape topic", "document_id", docID, "url", req.URL)
 		if err := h.publisher.PublishURLScrape(c.Request.Context(), docID, req.URL); err != nil {
-			slog.Error("failed to publish url scrape", "error", err)
+			slog.Error("failed to publish url scrape", "error", err, "document_id", docID, "url", req.URL)
 			c.JSON(http.StatusInternalServerError, Response{Error: "failed to publish task"})
 			return
 		}
+		slog.Info("successfully published to url-scrape", "document_id", docID)
 	} else {
 		slog.Warn("publisher not available, skipping Pub/Sub publish")
 	}
