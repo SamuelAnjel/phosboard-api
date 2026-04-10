@@ -113,26 +113,21 @@ func (h *DocumentHandler) TrackGin(c *gin.Context) {
 		sourceType = "manual"
 	}
 
-	taskID, err := h.repo.TrackDocument(c.Request.Context(), tenantID, req.URL, sourceType, req.Priority)
+	docID, taskID, err := h.repo.TrackDocument(c.Request.Context(), tenantID, req.URL, sourceType, req.Priority)
 	if err != nil {
 		slog.Error("failed to track document", "error", err, "url", req.URL, "tenant_id", tenantID)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to track document"})
 		return
 	}
 
-	sourceID, err := h.repo.GetOrCreateSource(c.Request.Context(), sourceType, "manual")
-	if err != nil {
-		slog.Error("failed to get source", "error", err)
-	} else {
-		if h.publisher != nil {
-			if err := h.publisher.PublishURLScrape(c.Request.Context(), sourceID, req.URL); err != nil {
-				slog.Error("failed to publish url scrape", "error", err)
-				c.JSON(http.StatusInternalServerError, Response{Error: "failed to publish task"})
-				return
-			}
-		} else {
-			slog.Warn("publisher not available, skipping Pub/Sub publish")
+	if h.publisher != nil {
+		if err := h.publisher.PublishURLScrape(c.Request.Context(), docID, req.URL); err != nil {
+			slog.Error("failed to publish url scrape", "error", err)
+			c.JSON(http.StatusInternalServerError, Response{Error: "failed to publish task"})
+			return
 		}
+	} else {
+		slog.Warn("publisher not available, skipping Pub/Sub publish")
 	}
 
 	c.JSON(http.StatusAccepted, gin.H{
@@ -163,16 +158,20 @@ func (h *DocumentHandler) trackHandler(w http.ResponseWriter, r *http.Request, r
 		sourceID = "manual"
 	}
 
-	documentID, err := h.insertDiscoveryTask(r.Context(), req.URL, sourceID, req.Priority)
+	// For this legacy endpoint, we need to create a document and get its ID
+	// Since we don't have tenant context here, we'll use a default tenant
+	defaultTenantID := "85c5f582-86b1-4217-bd4a-e1b1d0aac195" // Default tenant
+
+	docID, taskID, err := h.repo.TrackDocument(r.Context(), defaultTenantID, req.URL, sourceID, req.Priority)
 	if err != nil {
-		slog.Error("failed to insert discovery task", "error", err, "url", req.URL)
+		slog.Error("failed to track document", "error", err, "url", req.URL, "tenant_id", defaultTenantID)
 		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(Response{Error: "failed to insert task"})
+		_ = json.NewEncoder(w).Encode(Response{Error: "failed to track document"})
 		return
 	}
 
 	if h.publisher != nil {
-		if err := h.publisher.PublishURLScrape(r.Context(), sourceID, req.URL); err != nil {
+		if err := h.publisher.PublishURLScrape(r.Context(), docID, req.URL); err != nil {
 			slog.Error("failed to publish url scrape", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			_ = json.NewEncoder(w).Encode(Response{Error: "failed to publish task"})
@@ -181,6 +180,9 @@ func (h *DocumentHandler) trackHandler(w http.ResponseWriter, r *http.Request, r
 	} else {
 		slog.Warn("publisher not available, skipping Pub/Sub publish")
 	}
+
+	_ = taskID          // taskID is not used in response but we need to handle it
+	documentID := docID // Update the variable for response
 
 	w.WriteHeader(http.StatusAccepted)
 	_ = json.NewEncoder(w).Encode(Response{

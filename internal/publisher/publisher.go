@@ -15,8 +15,8 @@ import (
 const topicID = "url-scrape"
 
 type URLScrapeTask struct {
-	SourceID string `json:"source_id"`
-	URL      string `json:"url"`
+	DocumentID string `json:"document_id"`
+	URL        string `json:"url"`
 }
 
 type Publisher struct {
@@ -69,10 +69,10 @@ func (p *Publisher) Close() {
 	_ = p.client.Close()
 }
 
-func (p *Publisher) PublishURLScrape(ctx context.Context, sourceID, url string) error {
+func (p *Publisher) PublishURLScrape(ctx context.Context, documentID, url string) error {
 	task := URLScrapeTask{
-		SourceID: sourceID,
-		URL:      url,
+		DocumentID: documentID,
+		URL:        url,
 	}
 
 	data, err := json.Marshal(task)

@@ -16,7 +16,7 @@ type DocumentRepository interface {
 	GetLatestByTenant(ctx context.Context, tenantID string) ([]models.DocumentWithSource, error)
 	GetDocumentsByTenant(ctx context.Context, tenantID string, limit, offset int) ([]models.DocumentWithAnalysis, int, error)
 	GetOrCreateSource(ctx context.Context, name, sourceType string) (string, error)
-	TrackDocument(ctx context.Context, tenantID, url, sourceType string, priority int) (string, error)
+	TrackDocument(ctx context.Context, tenantID, url, sourceType string, priority int) (string, string, error)
 }
 
 type PostgresDocumentRepository struct {
@@ -146,16 +146,16 @@ func (r *PostgresDocumentRepository) GetDocumentsByTenant(ctx context.Context, t
 	return docs, total, nil
 }
 
-func (r *PostgresDocumentRepository) TrackDocument(ctx context.Context, tenantID, url, sourceType string, priority int) (string, error) {
+func (r *PostgresDocumentRepository) TrackDocument(ctx context.Context, tenantID, url, sourceType string, priority int) (string, string, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
-		return "", fmt.Errorf("begin transaction: %w", err)
+		return "", "", fmt.Errorf("begin transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	sourceID, err := r.getOrCreateSourceTx(ctx, tx, sourceType)
 	if err != nil {
-		return "", fmt.Errorf("get or create source: %w", err)
+		return "", "", fmt.Errorf("get or create source: %w", err)
 	}
 
 	var docID string
@@ -167,7 +167,7 @@ func (r *PostgresDocumentRepository) TrackDocument(ctx context.Context, tenantID
 		sourceID, url,
 	).Scan(&docID)
 	if err != nil {
-		return "", fmt.Errorf("insert global document: %w", err)
+		return "", "", fmt.Errorf("insert global document: %w", err)
 	}
 
 	_, err = tx.Exec(ctx,
@@ -177,7 +177,7 @@ func (r *PostgresDocumentRepository) TrackDocument(ctx context.Context, tenantID
 		tenantID, docID,
 	)
 	if err != nil {
-		return "", fmt.Errorf("insert tenant document: %w", err)
+		return "", "", fmt.Errorf("insert tenant document: %w", err)
 	}
 
 	var taskID string
@@ -189,14 +189,14 @@ func (r *PostgresDocumentRepository) TrackDocument(ctx context.Context, tenantID
 		url, sourceType, priority,
 	).Scan(&taskID)
 	if err != nil {
-		return "", fmt.Errorf("insert discovery task: %w", err)
+		return "", "", fmt.Errorf("insert discovery task: %w", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return "", fmt.Errorf("commit transaction: %w", err)
+		return "", "", fmt.Errorf("commit transaction: %w", err)
 	}
 
-	return taskID, nil
+	return docID, taskID, nil
 }
 
 func (r *PostgresDocumentRepository) getOrCreateSourceTx(ctx context.Context, tx pgx.Tx, name string) (string, error) {
