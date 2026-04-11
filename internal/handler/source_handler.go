@@ -63,7 +63,7 @@ func (h *SourceHandler) HandleSourcesGin(c *gin.Context) {
 		}
 
 		// Validar configuración de crawling si es tipo web-crawl
-		if sourceType == "web-crawl" && req.Crawl == nil {
+		if sourceType == "web-crawl" && req.Crawl == nil && req.CrawlConfig == nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "crawl configuration is required for web-crawl type"})
 			return
 		}
@@ -86,22 +86,29 @@ func (h *SourceHandler) HandleSourcesGin(c *gin.Context) {
 		}
 
 		// Agregar configuración de crawling si es tipo web-crawl
-		if sourceType == "web-crawl" && req.Crawl != nil {
+		var crawlConfig *models.CrawlConfig
+		if req.Crawl != nil {
+			crawlConfig = req.Crawl
+		} else if req.CrawlConfig != nil {
+			crawlConfig = req.CrawlConfig
+		}
+
+		if sourceType == "web-crawl" && crawlConfig != nil {
 			config["crawl"] = map[string]interface{}{
-				"max_depth":        req.Crawl.MaxDepth,
-				"max_pages":        req.Crawl.MaxPages,
-				"same_domain":      req.Crawl.SameDomain,
-				"include_paths":    req.Crawl.IncludePaths,
-				"exclude_paths":    req.Crawl.ExcludePaths,
-				"respect_robots":   req.Crawl.RespectRobots,
-				"crawl_delay_ms":   req.Crawl.CrawlDelayMS,
-				"maxDepth":         req.Crawl.MaxDepth,
-				"maxPages":         req.Crawl.MaxPages,
-				"sameDomain":       req.Crawl.SameDomain,
-				"includePaths":     req.Crawl.IncludePaths,
-				"excludePaths":     req.Crawl.ExcludePaths,
-				"respectRobotsTxt": req.Crawl.RespectRobots,
-				"delayMs":          req.Crawl.CrawlDelayMS,
+				"max_depth":        crawlConfig.MaxDepth,
+				"max_pages":        crawlConfig.MaxPages,
+				"same_domain":      crawlConfig.SameDomain,
+				"include_paths":    crawlConfig.IncludePaths,
+				"exclude_paths":    crawlConfig.ExcludePaths,
+				"respect_robots":   crawlConfig.RespectRobots,
+				"crawl_delay_ms":   crawlConfig.CrawlDelayMS,
+				"maxDepth":         crawlConfig.MaxDepth,
+				"maxPages":         crawlConfig.MaxPages,
+				"sameDomain":       crawlConfig.SameDomain,
+				"includePaths":     crawlConfig.IncludePaths,
+				"excludePaths":     crawlConfig.ExcludePaths,
+				"respectRobotsTxt": crawlConfig.RespectRobots,
+				"delayMs":          crawlConfig.CrawlDelayMS,
 			}
 		}
 

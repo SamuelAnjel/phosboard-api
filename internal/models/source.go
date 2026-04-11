@@ -32,11 +32,12 @@ type CrawlConfig struct {
 }
 
 type CreateSourceRequest struct {
-	Name     string       `json:"name"`
-	Type     string       `json:"type"`
-	URL      string       `json:"url"`
-	MaxLinks int          `json:"max_links"`
-	Crawl    *CrawlConfig `json:"crawl,omitempty"`
+	Name        string       `json:"name"`
+	Type        string       `json:"type"`
+	URL         string       `json:"url"`
+	MaxLinks    int          `json:"max_links"`
+	Crawl       *CrawlConfig `json:"crawl,omitempty"`
+	CrawlConfig *CrawlConfig `json:"crawlConfig,omitempty"`
 }
 
 type UpdateSourceConfigRequest struct {
