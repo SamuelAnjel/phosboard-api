@@ -78,6 +78,9 @@ func (h *SourceHandler) HandleSourcesGin(c *gin.Context) {
 		// Construir configuración completa
 		config := make(map[string]interface{})
 
+		// Siempre incluir el tipo en la configuración para que el discovery worker lo encuentre
+		config["type"] = sourceType
+
 		if req.MaxLinks > 0 {
 			config["max_links"] = req.MaxLinks
 		}
