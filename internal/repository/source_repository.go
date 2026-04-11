@@ -28,12 +28,19 @@ func NewSourceRepository(pool *pgxpool.Pool) *PostgresSourceRepository {
 
 func (r *PostgresSourceRepository) CreateSource(ctx context.Context, name, sourceType, url string) (*models.Source, error) {
 	var source models.Source
+
+	// Determinar fetch_strategy basado en el tipo de source
+	fetchStrategy := "rss"
+	if sourceType == "web-crawl" {
+		fetchStrategy = "web-crawl"
+	}
+
 	err := r.pool.QueryRow(ctx, `
-		INSERT INTO sources (name, type, url, config, created_at, updated_at)
-		VALUES ($1, $2, $3, '{}'::jsonb, NOW(), NOW())
+		INSERT INTO sources (name, type, url, fetch_strategy, config, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, '{}'::jsonb, NOW(), NOW())
 		ON CONFLICT (name) DO UPDATE SET updated_at = NOW()
 		RETURNING id, name, type, url, config, created_at, updated_at
-	`, name, sourceType, url).Scan(&source.ID, &source.Name, &source.Type, &source.URL, &source.Config, &source.CreatedAt, &source.UpdatedAt)
+	`, name, sourceType, url, fetchStrategy).Scan(&source.ID, &source.Name, &source.Type, &source.URL, &source.Config, &source.CreatedAt, &source.UpdatedAt)
 
 	if err != nil {
 		return nil, fmt.Errorf("create source: %w", err)
