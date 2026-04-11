@@ -22,13 +22,13 @@ type Source struct {
 }
 
 type CrawlConfig struct {
-	MaxDepth      int      `json:"max_depth"`
-	MaxPages      int      `json:"max_pages"`
-	SameDomain    bool     `json:"same_domain"`
-	IncludePaths  []string `json:"include_paths"`
-	ExcludePaths  []string `json:"exclude_paths"`
-	RespectRobots bool     `json:"respect_robots"`
-	CrawlDelayMS  int      `json:"crawl_delay_ms"`
+	MaxDepth      int      `json:"maxDepth"`
+	MaxPages      int      `json:"maxPages"`
+	SameDomain    bool     `json:"sameDomain"`
+	IncludePaths  []string `json:"includePaths"`
+	ExcludePaths  []string `json:"excludePaths"`
+	RespectRobots bool     `json:"respectRobotsTxt"`
+	CrawlDelayMS  int      `json:"delayMs"`
 }
 
 type CreateSourceRequest struct {

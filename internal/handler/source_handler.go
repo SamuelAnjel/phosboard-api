@@ -88,13 +88,20 @@ func (h *SourceHandler) HandleSourcesGin(c *gin.Context) {
 		// Agregar configuración de crawling si es tipo web-crawl
 		if sourceType == "web-crawl" && req.Crawl != nil {
 			config["crawl"] = map[string]interface{}{
-				"max_depth":      req.Crawl.MaxDepth,
-				"max_pages":      req.Crawl.MaxPages,
-				"same_domain":    req.Crawl.SameDomain,
-				"include_paths":  req.Crawl.IncludePaths,
-				"exclude_paths":  req.Crawl.ExcludePaths,
-				"respect_robots": req.Crawl.RespectRobots,
-				"crawl_delay_ms": req.Crawl.CrawlDelayMS,
+				"max_depth":        req.Crawl.MaxDepth,
+				"max_pages":        req.Crawl.MaxPages,
+				"same_domain":      req.Crawl.SameDomain,
+				"include_paths":    req.Crawl.IncludePaths,
+				"exclude_paths":    req.Crawl.ExcludePaths,
+				"respect_robots":   req.Crawl.RespectRobots,
+				"crawl_delay_ms":   req.Crawl.CrawlDelayMS,
+				"maxDepth":         req.Crawl.MaxDepth,
+				"maxPages":         req.Crawl.MaxPages,
+				"sameDomain":       req.Crawl.SameDomain,
+				"includePaths":     req.Crawl.IncludePaths,
+				"excludePaths":     req.Crawl.ExcludePaths,
+				"respectRobotsTxt": req.Crawl.RespectRobots,
+				"delayMs":          req.Crawl.CrawlDelayMS,
 			}
 		}
 
