@@ -46,23 +46,60 @@ func (h *SourceHandler) HandleSourcesGin(c *gin.Context) {
 			return
 		}
 
+		if req.URL == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "url is required"})
+			return
+		}
+
 		sourceType := req.Type
 		if sourceType == "" {
 			sourceType = "rss"
 		}
 
-		source, err := h.repo.CreateSource(c.Request.Context(), req.Name, sourceType)
+		// Validar tipo de source
+		if sourceType != "rss" && sourceType != "web-crawl" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "type must be 'rss' or 'web-crawl'"})
+			return
+		}
+
+		// Validar configuración de crawling si es tipo web-crawl
+		if sourceType == "web-crawl" && req.Crawl == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "crawl configuration is required for web-crawl type"})
+			return
+		}
+
+		source, err := h.repo.CreateSource(c.Request.Context(), req.Name, sourceType, req.URL)
 		if err != nil {
 			slog.Error("failed to create source", "error", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 			return
 		}
 
+		// Construir configuración completa
+		config := make(map[string]interface{})
+
 		if req.MaxLinks > 0 {
-			config := map[string]interface{}{"max_links": req.MaxLinks}
+			config["max_links"] = req.MaxLinks
+		}
+
+		// Agregar configuración de crawling si es tipo web-crawl
+		if sourceType == "web-crawl" && req.Crawl != nil {
+			config["crawl"] = map[string]interface{}{
+				"max_depth":      req.Crawl.MaxDepth,
+				"max_pages":      req.Crawl.MaxPages,
+				"same_domain":    req.Crawl.SameDomain,
+				"include_paths":  req.Crawl.IncludePaths,
+				"exclude_paths":  req.Crawl.ExcludePaths,
+				"respect_robots": req.Crawl.RespectRobots,
+				"crawl_delay_ms": req.Crawl.CrawlDelayMS,
+			}
+		}
+
+		// Solo actualizar si hay configuración
+		if len(config) > 0 {
 			source, err = h.repo.UpdateSourceConfig(c.Request.Context(), source.ID, config)
 			if err != nil {
-				slog.Error("failed to set max_links config", "error", err)
+				slog.Error("failed to update source config", "error", err)
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 				return
 			}

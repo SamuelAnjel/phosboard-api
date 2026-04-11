@@ -37,6 +37,15 @@ func main() {
 		"climate-aggregate",
 	}
 
+	// Push endpoints for Cloud Run services
+	pushEndpoints := map[string]string{
+		"source-discovery-sub":  "https://worker-discovery-544990213867.us-east1.run.app/",
+		"url-scrape-sub":        "https://worker-scraper-544990213867.us-east1.run.app/",
+		"document-analyze-sub":  "https://worker-semantic-544990213867.us-east1.run.app/",
+		"social-probe-sub":      "https://worker-social-probe-544990213867.us-east1.run.app/",
+		"climate-aggregate-sub": "https://worker-climate-aggregate-544990213867.us-east1.run.app/",
+	}
+
 	oldTopic := client.Topic("fetcher-tasks")
 	_ = oldTopic.Delete(ctx)
 	log.Printf("Deleted old topic: fetcher-tasks")
@@ -73,12 +82,17 @@ func main() {
 			continue
 		}
 
+		// Check if this subscription should be push
+		pushEndpoint, isPush := pushEndpoints[subName]
+
 		if exists {
 			config, err := sub.Config(ctx)
 			if err != nil {
 				log.Printf("Failed to get subscription %s config: %v", subName, err)
 				continue
 			}
+
+			// Update DLQ and retry policy
 			config.DeadLetterPolicy = &pubsub.DeadLetterPolicy{
 				DeadLetterTopic:     dlqTopic,
 				MaxDeliveryAttempts: 5,
@@ -87,17 +101,35 @@ func main() {
 				MinimumBackoff: 10 * time.Second,
 				MaximumBackoff: 600 * time.Second,
 			}
-			_, err = sub.Update(ctx, pubsub.SubscriptionConfigToUpdate{
+
+			// Set push config if applicable
+			if isPush {
+				config.PushConfig = pubsub.PushConfig{
+					Endpoint: pushEndpoint,
+				}
+				log.Printf("Setting push endpoint for %s: %s", subName, pushEndpoint)
+			}
+
+			updateConfig := pubsub.SubscriptionConfigToUpdate{
 				DeadLetterPolicy: config.DeadLetterPolicy,
 				RetryPolicy:      config.RetryPolicy,
-			})
+			}
+			if isPush {
+				updateConfig.PushConfig = &config.PushConfig
+			}
+
+			_, err = sub.Update(ctx, updateConfig)
 			if err != nil {
-				log.Printf("Failed to update subscription %s with DLQ: %v", subName, err)
+				log.Printf("Failed to update subscription %s: %v", subName, err)
 			} else {
 				log.Printf("Updated subscription %s with DLQ and retry policy", subName)
+				if isPush {
+					log.Printf("  - Push endpoint: %s", pushEndpoint)
+				}
 			}
 		} else {
-			_, err = client.CreateSubscription(ctx, subName, pubsub.SubscriptionConfig{
+			// Create new subscription
+			subConfig := pubsub.SubscriptionConfig{
 				Topic: client.Topic(topicName),
 				DeadLetterPolicy: &pubsub.DeadLetterPolicy{
 					DeadLetterTopic:     dlqTopic,
@@ -107,11 +139,24 @@ func main() {
 					MinimumBackoff: 10 * time.Second,
 					MaximumBackoff: 600 * time.Second,
 				},
-			})
+			}
+
+			// Set push config if applicable
+			if isPush {
+				subConfig.PushConfig = pubsub.PushConfig{
+					Endpoint: pushEndpoint,
+				}
+				log.Printf("Creating push subscription %s with endpoint: %s", subName, pushEndpoint)
+			}
+
+			_, err = client.CreateSubscription(ctx, subName, subConfig)
 			if err != nil {
 				log.Printf("Failed to create subscription %s: %v", subName, err)
 			} else {
 				log.Printf("Created subscription %s with DLQ", subName)
+				if isPush {
+					log.Printf("  - Push endpoint: %s", pushEndpoint)
+				}
 			}
 		}
 	}
