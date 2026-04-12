@@ -1,0 +1,63 @@
+name: phosboard
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: phos_postgres
+    environment:
+      POSTGRES_USER: phos_user
+      POSTGRES_PASSWORD: phos_password
+      POSTGRES_DB: phosboard
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      # NOTA: Comentado para NO ejecutar migraciones automáticamente
+      # - ./data/migrations:/docker-entrypoint-initdb.d 
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U phos_user -d phosboard"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio
+    container_name: phos_minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000" # API S3
+      - "9001:9001" # Consola Web
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - minio_data:/data
+    restart: unless-stopped
+
+  pubsub:
+    image: dipjyotimetia/pubsub-emulator:latest
+    container_name: pubsub-emulator
+    environment:
+      - PUBSUB_PROJECT=phosboard
+      - PUBSUB_TOPIC=fetcher-tasks
+      - PUBSUB_SUBSCRIPTION=fetcher-tasks-sub
+      - PUBSUB_PORT=8085
+      - DASHBOARD_PORT=8086
+    ports:
+      - "8085:8085"
+      - "8086:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8086/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  pg_data:
+  minio_data:
