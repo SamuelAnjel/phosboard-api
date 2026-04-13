@@ -159,7 +159,17 @@ func (d *Dispatcher) getActiveSources(ctx context.Context) ([]models.SourceForFe
 		`SELECT id, url, fetch_strategy 
 		 FROM sources 
 		 WHERE url IS NOT NULL 
-		 AND (last_run_at IS NULL OR last_run_at + (interval_minutes || ' minutes')::interval < NOW())
+		 AND (
+			 -- Fuentes nunca ejecutadas (nuevas)
+			 last_run_at IS NULL 
+			 -- Fuentes fuera de su intervalo normal  
+			 OR last_run_at + (interval_minutes || ' minutes')::interval < NOW()
+		 )
+		 ORDER BY 
+			 -- Prioridad 1: Fuentes nunca ejecutadas (nuevas)
+			 CASE WHEN last_run_at IS NULL THEN 1 ELSE 2 END,
+			 -- Prioridad 2: Las más antiguas primero entre las que ya se ejecutaron
+			 last_run_at ASC NULLS FIRST
 		 LIMIT 100`,
 	)
 	if err != nil {
