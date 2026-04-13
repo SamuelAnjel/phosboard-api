@@ -1,0 +1,37 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'us-east1-docker.pkg.dev/$PROJECT_ID/phosboard-images/scheduler:$TAG_NAME', '.']
+  
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'us-east1-docker.pkg.dev/$PROJECT_ID/phosboard-images/scheduler:$TAG_NAME']
+  
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'discovery-scheduler'
+      - '--image'
+      - 'us-east1-docker.pkg.dev/$PROJECT_ID/phosboard-images/scheduler:$TAG_NAME'
+      - '--region'
+      - 'us-east1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--min-instances'
+      - '0'
+      - '--max-instances'
+      - '1'
+      - '--memory'
+      - '256Mi'
+      - '--cpu'
+      - '1'
+      - '--timeout'
+      - '300'
+      - '--service-account'
+      - 'phosboard-runtime-sa@$PROJECT_ID.iam.gserviceaccount.com'
+      - '--set-env-vars'
+      - 'GOOGLE_PROJECT_ID=$PROJECT_ID,DISCOVERY_ENDPOINT=https://worker-discovery-544990213867.us-east1.run.app'
+
+images:
+  - 'us-east1-docker.pkg.dev/$PROJECT_ID/phosboard-images/scheduler:$TAG_NAME'

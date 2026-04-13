@@ -1,0 +1,118 @@
+name: Build and Deploy Workers to GCP
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  GCP_PROJECT_ID: phosboard
+  GCP_PROJECT_NUMBER: '544990213867'
+  WORKLOAD_IDENTITY_POOL: github-pool
+  WORKLOAD_IDENTITY_PROVIDER: github-provider
+  SERVICE_ACCOUNT: github-actions-sa@phosboard.iam.gserviceaccount.com
+  GAR_LOCATION: us-east1
+  GAR_REPO: phosboard-images
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Run golangci-lint on workers
+        run: |
+          for dir in workers/discovery workers/scraper workers/semantic workers/social_probe workers/climate_aggregate; do
+            if [ -f "$dir/go.mod" ]; then
+              echo "Linting $dir"
+              (cd $dir && golangci-lint run ./... || exit 1)
+            fi
+          done
+
+  build-and-deploy:
+    needs: lint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    strategy:
+      matrix:
+        worker:
+          - name: discovery
+            service: worker-discovery
+            context: workers/discovery
+          - name: scraper
+            service: worker-scraper
+            context: workers/scraper
+          - name: semantic
+            service: worker-semantic
+            context: workers/semantic
+            google_location: us-central1
+          - name: social-probe
+            service: worker-social-probe
+            context: workers/social_probe
+          - name: climate-aggregate
+            service: worker-climate-aggregate
+            context: workers/climate_aggregate
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: 'projects/${{ env.GCP_PROJECT_NUMBER }}/locations/global/workloadIdentityPools/${{ env.WORKLOAD_IDENTITY_POOL }}/providers/${{ env.WORKLOAD_IDENTITY_PROVIDER }}'
+          service_account: '${{ env.SERVICE_ACCOUNT }}'
+
+      - name: Fetch secrets from Secret Manager
+        uses: google-github-actions/get-secretmanager-secrets@v2
+        with:
+          secrets: |
+            DATABASE_URL:projects/${{ env.GCP_PROJECT_NUMBER }}/secrets/phosboard-database-url/versions/latest
+            JWT_SECRET:projects/${{ env.GCP_PROJECT_NUMBER }}/secrets/phosboard-jwt-secret/versions/latest
+          export_to_environment: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker ${{ env.GAR_LOCATION }}-docker.pkg.dev
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPO }}/${{ matrix.worker.name }}
+          tags: |
+            type=sha,prefix=
+            type=raw,value=${{ github.ref_name }}
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.worker.context }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ matrix.worker.service }}
+          image: ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPO }}/${{ matrix.worker.name }}:${{ github.ref_name }}
+          region: ${{ env.GAR_LOCATION }}
+          flags: '--allow-unauthenticated --min-instances=0 --max-instances=1'
+          env_vars: |
+            DATABASE_URL=${{ env.DATABASE_URL }}
+            GOOGLE_PROJECT_ID=${{ env.GCP_PROJECT_ID }}
+            GOOGLE_LOCATION=${{ matrix.worker.google_location || '' }}
