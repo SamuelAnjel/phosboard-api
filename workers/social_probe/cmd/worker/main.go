@@ -37,7 +37,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	scraperClient := scraper.NewMockScraper()
+	// Use Apify scraper if configured, otherwise fall back to mock
+	var scraperClient scraper.SocialScraper
+	apifyScraper, err := scraper.NewApifyScraper()
+	if err != nil {
+		logger.Warn("Apify scraper not configured, using mock scraper", "error", err)
+		scraperClient = scraper.NewMockScraper()
+	} else {
+		logger.Info("Using Apify scraper for social media monitoring")
+		scraperClient = apifyScraper
+	}
 
 	projectID := getEnvOrDefault("GOOGLE_PROJECT_ID", "phosboard")
 	pubsubEndpoint := os.Getenv("PUBSUB_EMULATOR_HOST")

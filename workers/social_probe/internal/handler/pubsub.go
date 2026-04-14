@@ -25,6 +25,12 @@ type PubSubMessage struct {
 	Subscription string `json:"subscription"`
 }
 
+type SocialTrackTask struct {
+	TrackID string   `json:"track_id"`
+	Terms   []string `json:"terms"`
+}
+
+// Backward compatibility - old format
 type SocialProbeTask struct {
 	DocumentID    string   `json:"document_id"`
 	SearchQueries []string `json:"search_queries"`
@@ -102,36 +108,49 @@ func (h *Handler) HandlePubSubPush(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) processTask(ctx context.Context, task SocialProbeTask) error {
 	logger := h.logger.With("component", "task_processor", "document_id", task.DocumentID)
 
+	// Convert old format to new format for backward compatibility
+	trackTask := SocialTrackTask{
+		TrackID: task.DocumentID, // Use document_id as track_id for backward compatibility
+		Terms:   task.SearchQueries,
+	}
+
+	return h.processTrack(ctx, trackTask, "document")
+}
+
+func (h *Handler) processTrack(ctx context.Context, task SocialTrackTask, sourceType string) error {
+	logger := h.logger.With("component", "track_processor", "track_id", task.TrackID, "source", sourceType)
+
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	allMentions := make([]scraper.SocialMention, 0)
 
-	for _, query := range task.SearchQueries {
+	for _, term := range task.Terms {
 		wg.Add(1)
-		go func(q string) {
+		go func(t string) {
 			defer wg.Done()
 
-			mentions, err := h.scraper.Scrape(ctx, q)
+			mentions, err := h.scraper.Scrape(ctx, t)
 			if err != nil {
-				logger.Error("failed to scrape query", "query", q, "error", err)
+				logger.Error("failed to scrape term", "term", t, "error", err)
 				return
 			}
 
 			mu.Lock()
 			allMentions = append(allMentions, mentions...)
 			mu.Unlock()
-		}(query)
+		}(term)
 	}
 
 	wg.Wait()
 
-	logger.Info("scraped mentions", "total", len(allMentions))
+	logger.Info("scraped mentions", "total", len(allMentions), "terms", len(task.Terms))
 
 	result := map[string]interface{}{
-		"document_id": task.DocumentID,
-		"queries":     task.SearchQueries,
-		"mentions":    allMentions,
-		"scraped_at":  time.Now().UTC().Format(time.RFC3339),
+		"track_id":   task.TrackID,
+		"terms":      task.Terms,
+		"mentions":   allMentions,
+		"scraped_at": time.Now().UTC().Format(time.RFC3339),
+		"source":     sourceType,
 	}
 
 	jsonData, err := json.Marshal(result)
@@ -139,8 +158,8 @@ func (h *Handler) processTask(ctx context.Context, task SocialProbeTask) error {
 		return fmt.Errorf("marshal result: %w", err)
 	}
 
-	timestamp := time.Now().UTC().Format("20060102T150405Z")
-	gcsKey := fmt.Sprintf("mentions/%s/%s.json", task.DocumentID, timestamp)
+	// New storage path: social-payloads/{track_id}.json
+	gcsKey := fmt.Sprintf("social-payloads/%s.json", task.TrackID)
 
 	if err := h.storage.PutObject(ctx, gcsKey, jsonData); err != nil {
 		return fmt.Errorf("save to GCS: %w", err)

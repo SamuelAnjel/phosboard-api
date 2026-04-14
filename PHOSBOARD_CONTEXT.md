@@ -524,19 +524,20 @@ workers/discovery/
     └── subscriber/subscriber.go
 ```
 
-### Flujo (PHOS-38, PHOS-40) - v2.0.0+ con document_id
-1. Consume de `source-discovery-sub` con mensaje: `{source_id, url, timestamp}`
-2. Lee configuración de `sources.config` (PHOS-40: max_links, default: 20)
-3. Descarga RSS y extrae URLs
-4. Inserta en `discovery_tasks` (patrón Outbox con ON CONFLICT)
-5. **Nuevo**: Crea documento en `global_documents` con `source_id` y URL (contenido vacío inicialmente)
-6. **PHOS-40**: Publica en `url-scrape` con `document_id` (no `source_id`) hasta alcanzar max_links
-7. Logging con slog para trackear progreso
+### Flujo (PHOS-38, PHOS-40) - v2.0.21+ con fixes críticos
+1. **Trigger**: Cloud Scheduler ejecuta endpoint `/process-source` cada 15 minutos
+2. **Procesamiento**: Consulta sources con `last_run_at` NULL o viejo (> intervalo)
+3. **Crawling**: Descarga página y extrae URLs usando configuración del source
+4. **Filtrado**: Usa `excludePaths` e `includePaths` de configuración para filtrar categorías vs artículos
+5. **Creación de documentos**: Siempre crea/actualiza en `global_documents` con `ON CONFLICT (url) DO UPDATE`
+6. **Publicación**: Publica mensaje a `url-scrape` con `document_id` y `url`
+7. **Tracking**: Actualiza `discovery_tasks` para tracking interno (sin bloquear flujo)
 
-### Cambios en v2.0.0+
-- **Mensaje de salida**: Ahora usa `document_id` en lugar de `source_id`
-- **Creación temprana**: Documentos creados en `global_documents` antes del scraping
-- **Integración con Bronze/Silver**: Prepara documentos para el patrón data lake
+### Cambios en v2.0.21+
+- **Fix crítico**: Ya no se bloquea por URLs existentes en `discovery_tasks`
+- **Always publish**: Siempre crea documento y publica al scraper
+- **Configuración respetada**: Usa `excludePaths` e `includePaths` de source config
+- **Arquitectura desacoplada**: Backend solo API, discovery ejecutado por Cloud Scheduler
 
 ### Tests
 - `internal/discovery/collector_test.go` - 3 tests (Discover, isAbsoluteURL, InvalidURL)
@@ -816,6 +817,16 @@ ERROR: duplicate key value violates unique constraint "global_documents_url_key"
 - **Causa**: La tabla `global_documents` tiene constraint UNIQUE en `url`
 - **Solución**: Implementar upsert con `ON CONFLICT (url) DO UPDATE SET` (PHOS-25)
 
+#### Error: Discovery no publica mensajes al scraper
+- **Causa**: `InsertIfNotExists` retornaba `exists = true` para URLs en `discovery_tasks`, bloqueando flujo
+- **Solución v2.0.21**: Ignorar resultado de `InsertIfNotExists`, siempre crear documento y publicar
+- **Solución v2.0.20**: `InsertIfNotExists` actualiza tasks `completed` → `pending` y solo retorna `exists = true` si está `pending`
+
+#### Error: Mensaje de prueba `test-123` atasca cola Pub/Sub
+- **Causa**: Mensaje con `https://example.com` fallaba por certificado, se reintentaba indefinidamente
+- **Solución**: Recrear subscription `url-scrape-sub` para purgar mensajes pendientes
+- **Prevención**: Dead-letter policy con `maxDeliveryAttempts: 5`
+
 #### Error: no unique or exclusion constraint matching the ON CONFLICT specification
 ```
 ERROR: there is no unique or exclusion constraint matching the ON CONFLICT specification (SQLSTATE 42P10)
@@ -957,35 +968,54 @@ frontend/
 
 ---
 
-## Pub/Sub DAG Topology (PHOS-18)
+## Arquitectura Desacoplada (Abril 2026)
+
+#### Flujo Actualizado
+```
+Backend API (CRUD de sources)
+    ↓ (API calls)
+Cloud SQL (sources table)
+    ↓ (Cloud Scheduler cada 15 min)
+Discovery Worker (v2.0.22+)
+    ↓ (Pub/Sub)
+Scraper Worker (Bronze/Silver)
+    ↓ (Pub/Sub)  
+Semantic Worker (Vertex AI)
+    ↓ (Pub/Sub)
+Climate Aggregate Worker
+```
+
+#### Cloud Scheduler Configuration
+- **Job**: `discovery-scheduler`
+- **Region**: us-east1
+- **Schedule**: `*/15 * * * *` (cada 15 minutos)
+- **HTTP Target**: `https://worker-discovery-544990213867.us-east1.run.app/process-source`
+- **Body**: `{}` (procesa todos los sources pendientes)
+- **Service Account**: `phosboard-runtime-sa@phosboard.iam.gserviceaccount.com`
+
+#### Pub/Sub DAG Topology Actualizado
 
 ### Topics
-| Topic | Dead Letter |
-|-------|-------------|
-| `source-discovery` | `source-discovery-dead-letter` |
-| `url-scrape` | `url-scrape-dead-letter` |
-| `document-analyze` | `document-analyze-dead-letter` |
-| `social-probe` | `social-probe-dead-letter` |
-| `climate-aggregate` | `climate-aggregate-dead-letter` |
+| Topic | Dead Letter | Notas |
+|-------|-------------|-------|
+| `url-scrape` | `url-scrape-dead-letter` | Discovery → Scraper |
+| `document-analyze` | `document-analyze-dead-letter` | Scraper → Semantic |
+| `social-probe` | `social-probe-dead-letter` | Semantic → Social Probe (opcional) |
+| `climate-aggregate` | `climate-aggregate-dead-letter` | Social Probe → Climate Aggregate |
 
 ### Subscriptions
 | Subscription | Topic | Type | Push Endpoint | Notas |
 |--------------|-------|------|---------------|-------|
-| `source-discovery-sub` | `source-discovery` | Push | `worker-discovery` | Worker discovery recibe mensajes HTTP |
-| `url-scrape-sub` | `url-scrape` | Push | `worker-scraper` | Worker scraper recibe mensajes HTTP |
-| `document-analyze-sub` | `document-analyze` | Push | `worker-semantic` | Worker semantic recibe mensajes HTTP |
-| `social-probe-sub` | `social-probe` | Push | `worker-social-probe` | Worker social probe recibe mensajes HTTP |
-| `climate-aggregate-sub` | `climate-aggregate` | Push | `worker-climate-aggregate` | Worker climate aggregate recibe mensajes HTTP |
+| `url-scrape-sub` | `url-scrape` | Push | `worker-scraper-544990213867.us-east1.run.app/` | Scraper recibe mensajes HTTP |
+| `document-analyze-sub` | `document-analyze` | Push | `worker-semantic-544990213867.us-east1.run.app/` | Semantic recibe mensajes HTTP |
+| `social-probe-sub` | `social-probe` | Push | `worker-social-probe-544990213867.us-east1.run.app/` | Social Probe recibe mensajes HTTP |
+| `climate-aggregate-sub` | `climate-aggregate` | Push | `worker-climate-aggregate-544990213867.us-east1.run.app/` | Climate Aggregate recibe mensajes HTTP |
 
 **Configuración común:**
 - DeadLetterPolicy: max 5 delivery attempts
 - RetryPolicy: 10s minimum, 600s maximum backoff
-- **Push endpoints**: Todos los workers usan push subscriptions para integración con Cloud Run
-
-### Setup
-```bash
-cd backend && go run ./cmd/setup-pubsub
-```
+- Push Auth: `phosboard-runtime-sa@phosboard.iam.gserviceaccount.com`
+- **Nota**: `source-discovery` topic/subscription eliminado, reemplazado por Cloud Scheduler
 
 ---
 
@@ -1114,9 +1144,27 @@ GOOGLE_PROJECT_ID=phosboard
 6. **Fix crítico**: Tipo de datos `CreatedAt`/`UpdatedAt` cambiados de `string` a `time.Time`
 7. **Permisos faltantes**: Agregado `POST /api/v1/documents/track` para tenant-admin
 
+### ✅ **Flujo Backend → Discovery → Scraper (Abril 2026)**
+1. **Arquitectura Desacoplada**: 
+   - Backend: Solo API CRUD para sources
+   - Discovery: Procesamiento periódico via Cloud Scheduler
+   - Scraper: Activado por mensajes Pub/Sub del discovery
+2. **Fix de Bloqueos**:
+   - Discovery v2.0.21+: Ignora `discovery_tasks` como bloqueo, siempre crea documentos y publica
+   - `CreateDocument` con `ON CONFLICT (url) DO UPDATE` para URLs duplicadas
+   - `InsertIfNotExists` actualiza tasks `completed` → `pending` para tracking
+3. **Configuración de Filtros**:
+   - Sources soportan `excludePaths` e `includePaths` en configuración JSON
+   - Discovery v2.0.22+: Respeta configuración para filtrar categorías vs artículos
+   - Filtros por defecto para excluir `/policial/`, `/deportes/`, etc.
+4. **Infraestructura**:
+   - Cloud Scheduler ejecuta discovery cada 15 minutos
+   - Pub/Sub subscription `url-scrape-sub` limpio y funcional
+   - Workers desplegados como Cloud Run services con auto-scaling
+
 ### ✅ **Versiones Desplegadas**
 - **Backend API**: v1.2.5 (RBAC completo, fix tipos timestamp, permisos faltantes)
-- **Discovery**: v2.0.1 (crea documentos, publica con `document_id`)
+- **Discovery**: v2.0.22 (fix bloqueo por tasks, respeta exclude/include paths)
 - **Scraper**: v2.0.2 (Bronze/Silver pattern, 15k chars en DB, texto completo en GCS)
 - **Semantic**: v2.0.4 (Vertex AI sin truncamiento, lee texto plano de GCS)
 - **Climate Aggregate**: v2.0.1 (cálculo temperatura social)
@@ -1125,7 +1173,17 @@ GOOGLE_PROJECT_ID=phosboard
 
 ### ✅ **Pipeline Validado**
 ```
-Backend (RBAC) → Discovery → Scraper (Bronze/Silver) → Semantic → Climate Aggregate
+Backend API (RBAC) 
+    ↓
+Cloud Scheduler (cada 15 min)
+    ↓
+Discovery Worker (v2.0.22+) → Filtra URLs → Crea documentos → Publica a scraper
+    ↓
+Scraper Worker (Bronze/Silver) → Procesa URLs → Almacena en GCS → Actualiza DB
+    ↓
+Semantic Worker → Analiza con Vertex AI
+    ↓
+Climate Aggregate → Calcula temperatura social
 ```
 
 ## Problemas Pendientes
@@ -1136,16 +1194,23 @@ Backend (RBAC) → Discovery → Scraper (Bronze/Silver) → Semantic → Climat
 - **Estado**: Implementado encoding UTF-8 con `golang.org/x/net/html/charset` pero aún con problemas
 - **Solución pendiente**: Investigar mejor detección de encoding o forzar UTF-8 en respuesta HTTP
 
+### ⚠️ **Configuración de Filtros Manual**
+- **Problema**: Sources necesitan configuración manual de `excludePaths` e `includePaths` en DB
+- **Solución pendiente**: Panel frontend para configurar filtros por source
+- **Estado**: Configuración soportada en código (v2.0.22+), falta UI
+
 ## Próximos Pasos Sugeridos
 
 1. ✅ **PHOS-40**: CRUD de Fuentes y Control de Límites en Discovery
 2. ✅ **Bronze/Silver**: Implementación completa del patrón data lake
 3. ✅ **RBAC System**: Sistema completo de control de acceso basado en roles
-4. ⏳ **Encoding Fix**: Resolver problemas de Ñ, tildes y caracteres especiales
-5. ⏳ **Testing**: Validar pipeline completo con testing end-to-end
-6. ⏳ **Monitoreo**: Configurar observabilidad para el pipeline
-7. ⏳ **Optimización**: Basada en datos de uso real
-8. ⏳ **Logs OpenTelemetry**: Agregar logs estructurados para diagnóstico
+4. ✅ **Flujo Backend → Discovery → Scraper**: Pipeline funcional y desacoplado
+5. ⏳ **Encoding Fix**: Resolver problemas de Ñ, tildes y caracteres especiales
+6. ⏳ **Panel de Configuración de Sources**: Frontend para configurar exclude/include paths
+7. ⏳ **Testing**: Validar pipeline completo con testing end-to-end
+8. ⏳ **Monitoreo**: Configurar observabilidad para el pipeline
+9. ⏳ **Optimización**: Basada en datos de uso real
+10. ⏳ **Logs OpenTelemetry**: Agregar logs estructurados para diagnóstico
 
 ---
 
