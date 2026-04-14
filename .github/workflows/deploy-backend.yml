@@ -1,0 +1,98 @@
+name: Build and Deploy Backend API to GCP
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  GCP_PROJECT_ID: phosboard
+  GCP_PROJECT_NUMBER: '544990213867'
+  WORKLOAD_IDENTITY_POOL: github-pool
+  WORKLOAD_IDENTITY_PROVIDER: github-provider
+  SERVICE_ACCOUNT: github-actions-sa@phosboard.iam.gserviceaccount.com
+  GAR_LOCATION: us-east1
+  GAR_REPO: phosboard-images
+  SERVICE_NAME: api-backend
+  REGION: us-east1
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Run golangci-lint on backend
+        run: |
+          if [ -f "backend/go.mod" ]; then
+            echo "Linting backend"
+            (cd backend && golangci-lint run ./... || exit 1)
+          fi
+
+  build-and-deploy:
+    needs: lint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: 'projects/${{ env.GCP_PROJECT_NUMBER }}/locations/global/workloadIdentityPools/${{ env.WORKLOAD_IDENTITY_POOL }}/providers/${{ env.WORKLOAD_IDENTITY_PROVIDER }}'
+          service_account: '${{ env.SERVICE_ACCOUNT }}'
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Authenticate to Google Artifact Registry
+        run: |
+          gcloud auth configure-docker ${{ env.GAR_LOCATION }}-docker.pkg.dev --quiet
+
+      - name: Build and Push Backend API
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPO }}/${{ env.SERVICE_NAME }}:${{ github.ref_name }}
+            ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPO }}/${{ env.SERVICE_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
+            --image=${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPO }}/${{ env.SERVICE_NAME }}:${{ github.ref_name }} \
+            --platform=managed \
+            --region=${{ env.REGION }} \
+            --allow-unauthenticated \
+            --project=${{ env.GCP_PROJECT_ID }} \
+            --memory=512Mi \
+            --cpu=1 \
+            --max-instances=5 \
+            --min-instances=0 \
+            --concurrency=80 \
+            --timeout=300s \
+            --service-account=phosboard-api-backend-sa@phosboard.iam.gserviceaccount.com \
+            --set-env-vars="DATABASE_URL=${{ secrets.DATABASE_URL }}" \
+            --quiet
+
+      - name: Show deployment URL
+        run: |
+          URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} \
+            --platform=managed \
+            --region=${{ env.REGION }} \
+            --project=${{ env.GCP_PROJECT_ID }} \
+            --format='value(status.url)')
+          echo "Backend API deployed to: $URL"
+          echo "::set-output name=url::$URL"
